@@ -1,0 +1,48 @@
+# Black Switch â€” build & push the custom ComfyUI image to GHCR.
+# PLACE THIS FILE IN THE REPO AT:  .github/workflows/build-comfy-image.yml
+# It expects Dockerfile, entrypoint.sh, models.txt at the REPO ROOT (simplest web-upload layout).
+name: build-comfy-image
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: {}          # also lets you press "Run workflow" by hand from the Actions tab
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write            # required to push to ghcr.io
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free up disk (CUDA images are large)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL
+          df -h
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}   # built-in, no extra secret needed
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          # STEP 1 image (libs+nodes baked, models on volume). For STEP 2 (bake models -> 16 DCs) add:
+          #   build-args: BAKE_MODELS=1
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/black-switch-gpu:latest
+            ghcr.io/${{ github.repository_owner }}/black-switch-gpu:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Done
+        run: echo "Pushed ghcr.io/${{ github.repository_owner }}/black-switch-gpu:latest â€” now make the package Public in GHCR settings."
