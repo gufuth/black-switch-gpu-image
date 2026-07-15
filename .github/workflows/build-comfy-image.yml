@@ -1,6 +1,5 @@
-# Black Switch â€” build & push the custom ComfyUI image to GHCR.
-# PLACE THIS FILE IN THE REPO AT:  .github/workflows/build-comfy-image.yml
-# It expects Dockerfile, entrypoint.sh, models.txt at the REPO ROOT (simplest web-upload layout).
+# Black Switch — build & push the custom ComfyUI image to GHCR.
+# REPO PATH:  .github/workflows/build-comfy-image.yml
 name: build-comfy-image
 on:
   push:
@@ -16,9 +15,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Free up disk (CUDA images are large)
+      - name: Free up disk + move Docker to the big partition (42GB of models need room)
         run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          sudo swapoff -a || true; sudo rm -f /mnt/swapfile || true
+          # /mnt is the large (~65GB) ephemeral disk on ubuntu-latest; relocate Docker data-root there
+          sudo systemctl stop docker || true
+          sudo mkdir -p /mnt/docker
+          echo '{"data-root":"/mnt/docker"}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl start docker || true
           df -h
 
       - uses: docker/setup-buildx-action@v3
@@ -36,13 +41,13 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          # STEP 1 image (libs+nodes baked, models on volume). For STEP 2 (bake models -> 16 DCs) add:
-          #   build-args: BAKE_MODELS=1
+          build-args: |
+            BAKE_MODELS=1
           tags: |
             ghcr.io/${{ github.repository_owner }}/black-switch-gpu:latest
             ghcr.io/${{ github.repository_owner }}/black-switch-gpu:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # NOTE: no gha cache — it has a 10GB ceiling, useless for a 42GB model layer and would error.
+          provenance: false
 
       - name: Done
-        run: echo "Pushed ghcr.io/${{ github.repository_owner }}/black-switch-gpu:latest â€” now make the package Public in GHCR settings."
+        run: echo "Pushed ghcr.io/${{ github.repository_owner }}/black-switch-gpu:latest — make the package Public in GHCR settings."
