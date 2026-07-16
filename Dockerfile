@@ -1,6 +1,6 @@
 FROM runpod/comfyui:cuda12.8
 
-ENV COMFY=/workspace/runpod-slim/ComfyUI \
+ENV COMFY=/opt/comfyui-baked \
     PIP_NO_CACHE_DIR=1 \
     DEBIAN_FRONTEND=noninteractive
 
@@ -21,48 +21,12 @@ RUN python3 -m pip install --no-cache-dir \
         sentencepiece protobuf imageio-ffmpeg av && \
     python3 -m pip check || echo "WARN: pip check reported issues (non-fatal; inspect build log)"
 
-# 3. Entrypoint (inline). All /wan-vol refs are GUARDED, so with baked models + native nodes this runs
-#    volume-LESS: baked weights sit in the default ${COMFY}/models dirs and native Wan nodes are in the
-#    base image; the volume symlink/yaml lines simply no-op when no volume is attached.
-RUN cat > /opt/bs_entrypoint.sh <<'EOS' && chmod +x /opt/bs_entrypoint.sh
-#!/bin/bash
-set -u
-COMFY="${COMFY:-/workspace/runpod-slim/ComfyUI}"
-VOL="/wan-vol"
-log(){ echo "[bs-entrypoint $(date +%H:%M:%S)] $*"; }
-pkill -f 'main.py' 2>/dev/null; sleep 1
-cat > "${COMFY}/extra_model_paths.yaml" <<YAML
-wan_vol:
-  base_path: ${VOL}/ComfyUI
-  checkpoints: models/checkpoints
-  diffusion_models: models/diffusion_models
-  unet: models/diffusion_models
-  text_encoders: models/text_encoders
-  clip: models/text_encoders
-  vae: models/vae
-  loras: models/loras
-YAML
-mkdir -p "${COMFY}/models"
-[ -d "${VOL}/ComfyUI/models/mmaudio" ] && ln -sfn "${VOL}/ComfyUI/models/mmaudio" "${COMFY}/models/mmaudio" || true
-# Symlink the volume's EXACT custom nodes IF a volume is attached (no-op on volume-less native deploys).
-if [ -d "${VOL}/ComfyUI/custom_nodes" ]; then
-  for d in "${VOL}/ComfyUI/custom_nodes"/*/; do
-    n="$(basename "$d")"; ln -sfn "$d" "${COMFY}/custom_nodes/$n"
-  done
-fi
-if [ -f "${VOL}/ComfyUI/custom_nodes/ComfyUI-MMAudio/requirements.txt" ]; then
-  python3 -m pip install -q -r "${VOL}/ComfyUI/custom_nodes/ComfyUI-MMAudio/requirements.txt" 2>/dev/null || true
-fi
-[ -d "${VOL}/ComfyUI/models" ] && ( find "${VOL}/ComfyUI/models" -type f >/dev/null 2>&1 ; log "model metadata prewarm done" ) &
-log "setup done — launching ComfyUI"
-cd "${COMFY}"
-exec env PYTHONPATH="${VOL}/pylibs:${PYTHONPATH:-}" python3 main.py \
-     --listen 0.0.0.0 --port 8188 --enable-cors-header \
-     --extra-model-paths-config "${COMFY}/extra_model_paths.yaml"
-EOS
-
-# 4. Bake model weights for volume-LESS, DC-agnostic deploys (build with --build-arg BAKE_MODELS=1).
-#    Reads models.txt ("<dest_rel_path> <url>" lines) and curls each into ${COMFY}/models/<dest>.
+# 3. Bake model weights INTO THE BAKED SOURCE (/opt/comfyui-baked), NOT the runtime workspace dir.
+#    RunPod's start.sh copies /opt/comfyui-baked -> /workspace/runpod-slim/ComfyUI ONLY IF that dir
+#    does not already exist. Baking into the runtime dir pre-creates it and SKIPS the copy, so
+#    ComfyUI's own main.py never lands and the server never starts. Baking into the source dir keeps
+#    the native launch intact and carries our models along. We deliberately set NO ENTRYPOINT/CMD â€”
+#    the base image's start.sh launches ComfyUI natively (native Wan nodes ship in the base image).
 ARG BAKE_MODELS=0
 COPY models.txt /opt/models.txt
 RUN if [ "${BAKE_MODELS}" = "1" ]; then set -eux; \
@@ -72,7 +36,6 @@ RUN if [ "${BAKE_MODELS}" = "1" ]; then set -eux; \
         echo "baking ${dest}"; curl -fL --retry 3 -o "${COMFY}/models/${dest}" "${url}"; \
       done < /opt/models.txt; \
       ls -lhR "${COMFY}/models/diffusion_models" "${COMFY}/models/text_encoders" "${COMFY}/models/vae"; \
-    else echo "BAKE_MODELS=0 — models read from the network volume at runtime"; fi
+    else echo "BAKE_MODELS=0 â€” models read from the network volume at runtime"; fi
 
 EXPOSE 8188
-CMD ["/opt/bs_entrypoint.sh"]
