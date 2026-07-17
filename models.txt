@@ -1,4 +1,4 @@
-# Phase A — native Wan 2.2 VACE (text + reference-image face-lock), volume-LESS deploy.
+# Phase A â€” native Wan 2.2 VACE (text + reference-image face-lock), volume-LESS deploy.
 # Format: "<dest_rel_path> <url>"   dest_rel_path is relative to ComfyUI/models/.
 # Build with:  --build-arg BAKE_MODELS=1
 # URLs web-verified 2026-07-15 against Comfy-Org repackaged repos (native-ComfyUI format).
@@ -8,5 +8,6 @@ diffusion_models/wan2.2_fun_vace_high_noise_14B_fp8_scaled.safetensors https://h
 diffusion_models/wan2.2_fun_vace_low_noise_14B_fp8_scaled.safetensors https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_fun_vace_low_noise_14B_fp8_scaled.safetensors
 text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors
 vae/wan_2.1_vae.safetensors https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors
-# --- Phase B (add later, do NOT bake yet): clip_vision for Phantom multi-ref + Animate mode 2 ---
-# clip_vision/clip_vision_h.safetensors https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors
+# CLIP-Vision: enables WanAnimateToVideo reference-video (Mode 2) + clip_vision-based identity paths.
+# Comfy-Org repackaged (native-ComfyUI format), no requirements.txt / dependency risk.
+clip_vision/clip_vision_h.safetensors https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors
