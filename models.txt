@@ -11,3 +11,7 @@ vae/wan_2.1_vae.safetensors https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_rep
 # CLIP-Vision: enables WanAnimateToVideo reference-video (Mode 2) + clip_vision-based identity paths.
 # Comfy-Org repackaged (native-ComfyUI format), no requirements.txt / dependency risk.
 clip_vision/clip_vision_h.safetensors https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors
+# UNCENSORED text encoder: removes the token-truncation filter of the stock umt5 ("no filter at all").
+# NSFW-API/NSFW-Wan-UMT5-XXL, fp8_scaled (matches our image). Baked ALONGSIDE the stock encoder above,
+# so we can A/B and fall back. Verified real on HuggingFace (266 likes). Model file only, no deps.
+text_encoders/nsfw_wan_umt5-xxl_fp8_scaled.safetensors https://huggingface.co/NSFW-API/NSFW-Wan-UMT5-XXL/resolve/main/nsfw_wan_umt5-xxl_fp8_scaled.safetensors
